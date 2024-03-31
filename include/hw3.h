@@ -9,7 +9,14 @@ typedef struct GameState
     int **heights;
 } GameState;
 
-void print_game_state(GameState* gs, int rows); // COMMENT OUT WHEN DONE
+typedef struct GameStack
+{
+    int capacity;
+    int size;
+    GameState **array;
+} GameStack;
+
+// void print_game_state(GameState* gs, int rows); // COMMENT OUT WHEN DONE
 GameState* initialize_game_state(const char *filename);
 GameState* place_tiles(GameState *game, int row, int col, char direction, const char *tiles, int *num_tiles_placed);
 GameState* undo_place_tiles(GameState *game);

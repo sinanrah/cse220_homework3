@@ -10,18 +10,29 @@
 #define MAX 2048
 
 // JUST TO CHECK, COMMENT OUT WHEN DONE
-void print_game_state(GameState* gs, int rows) {
+void print_game_state(GameState* game, int rows) {
     printf("BOARD:\n");
     for (int i = 0; i < rows; i++) {
-        printf("%s\n", gs->board[i]);
+        printf("%s\n", game->board[i]);
     }
     for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < gs->cols; j++) {
-            printf("%d", gs->heights[i][j]);
+        for (int j = 0; j < game->cols; j++) {
+            printf("%d", game->heights[i][j]);
         }
         printf("\n");
     }
 }
+
+GameStack* initialize_stack() {
+    GameStack* stack = malloc(sizeof(GameStack));
+    stack->capacity = 10;
+    stack->size = 0;
+    stack->array = malloc(sizeof(GameState) * stack->capacity);
+
+    return stack;
+}
+
+
 
 GameState* initialize_game_state(const char *filename) {
     FILE *file;
@@ -40,34 +51,38 @@ GameState* initialize_game_state(const char *filename) {
     // printf("Rows: %d, Cols: %d\n", rows, cols); //check
 
     // start allocaing memory for the gamestate
-    GameState *gs = malloc(sizeof(GameState));
-    gs->rows = rows;
-    gs->cols = cols;
-    gs->board = malloc(rows * sizeof(char*));
+    GameState *game = malloc(sizeof(GameState));
+    game->rows = rows;
+    game->cols = cols;
+    game->board = malloc(rows * sizeof(char*));
     for (int i = 0; i < rows; i++) {
-        gs->board[i] = malloc(cols * sizeof(char));
+        game->board[i] = malloc(cols * sizeof(char));
     }
     // height array
-    gs->heights = malloc(rows * sizeof(int*));
+    game->heights = malloc(rows * sizeof(int*));
     for (int i = 0; i < rows; i++) {
-        gs->heights[i] = malloc(cols * sizeof(int));
+        game->heights[i] = malloc(cols * sizeof(int));
     }
     // now initialize the array according to the file, have to go back to beginning of file using fseek (ask if this is OK)
     fseek(file, 0, SEEK_SET);
     for (int i = 0; i < rows; i++) {
         fgets(buffer, MAX, file);
         for (int j = 0; j < cols; j++) {
-            gs->board[i][j] = buffer[j];
+            game->board[i][j] = buffer[j];
         }
     }
-    // initialize heights to 1
+    // initialize heights
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            gs->heights[i][j] = 1;
+            if (game->board[i][j] == '.') {
+                game->heights[i][j] = 0;
+            } else {
+            game->heights[i][j] = 1;
+            }
         }
     }
     fclose(file);
-    return gs;
+    return game;
 }
 
 GameState* place_tiles(GameState *game, int row, int col, char direction, const char *tiles, int *num_tiles_placed) {
@@ -82,7 +97,6 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
     while (fgets(buffer, 30, file)) {
         valid_words++;
     }
-
 
 
     (void) *game;
