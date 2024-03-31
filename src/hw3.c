@@ -8,31 +8,76 @@
 
 #define DEBUG(...) fprintf(stderr, "[          ] [ DEBUG ] "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, " -- %s()\n", __func__)
 #define MAX 2048
+#define DEFAULT_STACK_CAPACITY 10
 
 // JUST TO CHECK, COMMENT OUT WHEN DONE
-void print_game_state(GameState* game, int rows) {
-    printf("BOARD:\n");
-    for (int i = 0; i < rows; i++) {
-        printf("%s\n", game->board[i]);
+// void print_game_state(GameState* game, int rows) {
+//     printf("BOARD:\n");
+//     for (int i = 0; i < rows; i++) {
+//         printf("%s\n", game->board[i]);
+//     }
+//     for (int i = 0; i < rows; i++) {
+//         for (int j = 0; j < game->cols; j++) {
+//             printf("%d", game->heights[i][j]);
+//         }
+//         printf("\n");
+//     }
+// }
+
+// void free_one_game_state(GameState* game) {
+//     if (game != NULL) {
+//         for (int i = 0; i < game->rows; i++) {
+//             free(game->board[i]);
+//         }
+//         free(game->board);
+
+//         for (int i = 0; i < game->rows; i++) {
+//             free(game->heights[i]);
+//         }
+//         free(game->heights);
+//         free(game);
+//         }
+// }
+
+// GameStack* initialize_stack() {
+//     GameStack* stack = malloc(sizeof(GameStack));
+//     stack->capacity = 10;
+//     stack->size = 0;
+//     stack->array = malloc(sizeof(GameState*) * stack->capacity);
+
+//     return stack;
+// }
+
+void enlarge_stack(SaveStack* stack) {
+    int new_capacity = stack->capacity * 2;
+    Save **temp_array = realloc(stack->saves, sizeof(Save*) * new_capacity);
+    if (!temp_array) {
+        printf("Realloc failed.\n");
+        return;
     }
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < game->cols; j++) {
-            printf("%d", game->heights[i][j]);
-        }
-        printf("\n");
-    }
+    stack->saves = temp_array;
+    stack->capacity = new_capacity;
 }
 
-GameStack* initialize_stack() {
-    GameStack* stack = malloc(sizeof(GameStack));
-    stack->capacity = 10;
-    stack->size = 0;
-    stack->array = malloc(sizeof(GameState) * stack->capacity);
-
-    return stack;
+void push(SaveStack* stack, Save *save) {
+    if (!stack || !save) {
+        return;
+    }
+    if (stack->size == stack->capacity) {
+        enlarge_stack(stack);
+    }
+    stack->saves[stack->size++] = save; 
 }
 
+Save* peek(SaveStack* stack) {
+    if (!stack || stack->size == 0) {return NULL;}
+    return stack->saves[stack->size - 1];
+}
 
+Save* pop(SaveStack* stack) {
+    if (!stack || stack->size <= 0) {return NULL;}
+    return stack->saves[stack->size-- - 1];
+}
 
 GameState* initialize_game_state(const char *filename) {
     FILE *file;
@@ -52,8 +97,10 @@ GameState* initialize_game_state(const char *filename) {
 
     // start allocaing memory for the gamestate
     GameState *game = malloc(sizeof(GameState));
+    if (!game) {return NULL;}
     game->rows = rows;
     game->cols = cols;
+    game->save_stack = malloc(sizeof(SaveStack));
     game->board = malloc(rows * sizeof(char*));
     for (int i = 0; i < rows; i++) {
         game->board[i] = malloc(cols * sizeof(char));
@@ -82,6 +129,11 @@ GameState* initialize_game_state(const char *filename) {
         }
     }
     fclose(file);
+
+    //initialize save stakc
+    game->save_stack->capacity = DEFAULT_STACK_CAPACITY;
+    game->save_stack->size = 0;
+    game->save_stack->saves = malloc(sizeof(Save*) * game->save_stack->capacity);
     return game;
 }
 
@@ -112,7 +164,6 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
 }
 
 GameState* undo_place_tiles(GameState *game) {
-    (void)game;
     return game;
 }
 
@@ -127,10 +178,24 @@ void free_game_state(GameState *game) {
             free(game->heights[i]);
         }
         free(game->heights);
-        free(game);
 
-    } 
+        if (game->save_stack != NULL) {
+            for (int i = 0; i < game->save_stack->size; i++) {
+                Save *save = game->save_stack->saves[i];
+                if (save != NULL) {
+                    free(save->tiles);
+                    free(save->heights);
+                    free(save);
+                }
+            }
+            free(game->save_stack->saves);
+            free(game->save_stack);
+        }
+
+        free(game);
+    }
 }
+
 
 void save_game_state(GameState *game, const char *filename) {
     if (!game) {
