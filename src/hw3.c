@@ -284,7 +284,7 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
     if (direction != 'H' && direction != 'V') return game;
     if (!game || !tiles) {return NULL;}
     int length = strlen(tiles);
-    if (length < 2) return game;
+    if (game->save_stack->size == 0 && length < 2) return game;
     int placed = 0;
     // save, resize if necessary
     save(game, row, col, direction, tiles);
