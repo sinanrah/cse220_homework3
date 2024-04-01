@@ -9,6 +9,12 @@
 #define DEBUG(...) fprintf(stderr, "[          ] [ DEBUG ] "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, " -- %s()\n", __func__)
 #define MAX 2048
 #define DEFAULT_STACK_CAPACITY 10
+#define VALID_WORD_MAX_SIZE 30
+
+int num_valid_words = 0;
+char **words_array = NULL;
+// char words_buffer[VALID_WORD_MAX_SIZE]; // ASK IF THIS IS OK, array gets updated every time so its just 1 array so it should be ok
+
 
 // JUST TO CHECK, COMMENT OUT WHEN DONE
 // void print_game_state(GameState* game, int rows) {
@@ -33,6 +39,65 @@
 // }
 
 // check_first_word
+
+int get_valid_word_count() {
+    FILE* file = fopen("tests/words.txt", "r");
+    char buffer[VALID_WORD_MAX_SIZE];
+    while (fgets(buffer, VALID_WORD_MAX_SIZE, file)) {
+        num_valid_words++;
+    }
+    fclose(file);
+    return num_valid_words;
+}
+
+void create_valid_word_array() {
+    FILE* file = fopen("tests/words.txt", "r");
+    char buffer[VALID_WORD_MAX_SIZE];
+    words_array = (char**)malloc(sizeof(char *) * num_valid_words);
+    if (!words_array) {
+        printf("Problem mallocing words_array\n");
+        fclose(file);
+        return;
+    }
+
+    for (int i = 0; i < num_valid_words; i++) {
+        fgets(buffer, VALID_WORD_MAX_SIZE, file);
+        size_t array_length = strlen(buffer);
+        if (buffer[array_length - 1] == '\n') {
+            buffer[array_length - 1] = '\0'; 
+            array_length--; 
+        }
+        
+        words_array[i] = (char*)malloc(sizeof(char) * (array_length + 1));
+        if (!words_array[i]) {
+            printf("Problem mallocing words_array[%d]\n", i);
+            fclose(file);
+            continue;            
+        }
+        for (size_t j = 0; j < array_length; j++) {
+            words_array[i][j] = toupper(buffer[j]);
+        }
+        words_array[i][array_length] = '\0';
+    }   
+    fclose(file);
+}
+
+void free_word_array() {
+    if (!words_array) {return;}
+    for (int i = 0; i < num_valid_words; i++) {
+        free(words_array[i]);
+    }
+    free(words_array);
+}
+
+int check_valid(const char* word) {
+    for (int i = 0; i < num_valid_words; i++) {
+        if (strcmp(words_array[i], word) == 0) {
+            return 1; 
+        }
+    }
+    return 0; 
+}
 
 void enlarge_stack(SaveStack* stack) {
     int new_capacity = stack->capacity * 2;
@@ -199,13 +264,16 @@ void resize_horizontal(GameState *game, int cols) {
     }
 }
 
-
 GameState* initialize_game_state(const char *filename) {
     FILE *file;
     file = fopen(filename, "r");
     if(!file) {
         printf("Unable to open file.");
         return NULL;
+    }
+    if (num_valid_words == 0) {
+        get_valid_word_count();
+        create_valid_word_array();
     }
     // first find the dimensions of the current board to allocate memory for the gamestate
     int rows = 0, cols = 0;
@@ -277,6 +345,62 @@ GameState* initialize_game_state(const char *filename) {
     }
     return game;
 }
+// SIMPLIFY ALL IF STATEMENTS TO CONDITIONAL OPERATORS, RMB DELETE THIS COMMENT WHEN DONE
+
+void find_word_bounds(GameState *game, int row, int col, char direction, int *start, int *end) {
+    int i = (direction == 'H') ? col : row;
+    while (i >= 0 && game->board[direction == 'H' ? row : i][direction == 'H' ? i : col] != '.') {
+        --i;
+    }
+    *start = i + 1;
+
+    i = (direction == 'H') ? col : row;
+    int limit = (direction == 'H') ? game->cols : game->rows;
+    while (i < limit && game->board[direction == 'H' ? row : i][direction == 'H' ? i : col] != '.') {
+        ++i;
+    }
+    *end = i - 1;
+}
+
+int check_word_validity(GameState *game, int row, int col, char direction) {
+    int start, end;
+    find_word_bounds(game, row, col, direction, &start, &end);
+
+    int word_length = (direction == 'H') ? end - start + 1 : end - start + 1;
+    char word[word_length + 1];
+
+    for (int i = 0; i < word_length; ++i) {
+        word[i] = game->board[direction == 'H' ? row : start + i][direction == 'H' ? start + i : col];
+    }
+    word[word_length] = '\0';
+
+    return check_valid(word);
+}
+
+int check_bonus_words(GameState *game, int row, int col, char direction, const char *tiles) {
+    int length = strlen(tiles);
+    for (int i = 0; i < length; ++i) {
+        if (tiles[i] != ' ') {
+            int bonus_row = (direction == 'H') ? row : row + i;
+            int bonus_col = (direction == 'H') ? col + i : col;
+            if (!check_word_validity(game, bonus_row, bonus_col, direction == 'H' ? 'V' : 'H')) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+int check_empty_board(GameState *game) {
+    for (int row = 0; row < game->rows; row++) {
+        for (int col = 0; col < game->cols; col++) {
+            if (game->board[row][col] != '.' && game->board[row][col] != ' ') {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
 
 GameState* place_tiles(GameState *game, int row, int col, char direction, const char *tiles, int *num_tiles_placed) {
     // Check bounds
@@ -284,7 +408,10 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
     if (direction != 'H' && direction != 'V') return game;
     if (!game || !tiles) {return NULL;}
     int length = strlen(tiles);
-    if (game->save_stack->size == 0 && length < 2) return game;
+    if (check_empty_board(game) && length < 2) {
+        *num_tiles_placed = 0;
+        return game;
+    }
     int placed = 0;
     // save, resize if necessary
     save(game, row, col, direction, tiles);
@@ -298,41 +425,41 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
             resize_vertical(game, rows_to_add);
         }
     }
-    if (direction == 'H') {
-        for (int i = 0; i < length; i++) {
-            if (tiles[i] != ' ') {
-                game->board[row][col + i] = toupper(tiles[i]);
-                game->heights[row][col + i]++;
-                placed++;
+    for (int i = 0; i < length; i++) {
+        int current_row = direction == 'H' ? row : row + i;
+        int current_col = direction == 'H' ? col + i : col;
+
+        if (tiles[i] != ' ') { 
+            if (game->heights[current_row][current_col] >= 5) { 
+                undo_place_tiles(game);
+                *num_tiles_placed = 0;
+                return game;
+            }
+            game->board[current_row][current_col] = toupper(tiles[i]);
+            game->heights[current_row][current_col]++;
+            placed++;
+        } else {
+            if (game->board[current_row][current_col] == '.' || game->board[current_row][current_col] == ' ') {
+                undo_place_tiles(game);
+                *num_tiles_placed = 0;
+                return game;
             }
         }
-    } else {
-        for (int i = 0; i < length; i++) {
-            if (tiles[i] != ' ') {
-                game->board[row + i][col] = toupper(tiles[i]);
-                game->heights[row + i][col]++;
-                placed++;
-            }
-        }
+    } 
+    if (!check_word_validity(game, row, col, direction)) {
+        undo_place_tiles(game);
+        *num_tiles_placed = 0;
+        return game;
+    } 
+
+    if (!check_bonus_words(game, row, col, direction, tiles)) {
+        undo_place_tiles(game);
+        *num_tiles_placed = 0;
+        return game;
     }
 
+
     *num_tiles_placed = placed;
-
-
-    
-
-
-
-
-
-    // // Check valid word
-    // int valid_words;
-    // FILE *file = fopen("/workspaces/cse220_homework3/tests/words.txt", "r");
-    // char buffer[30]; // ASK IF THIS IS OK
-    // while (fgets(buffer, 30, file)) {
-    //     valid_words++;
-    // }
-
     return game;
 }
 
@@ -399,6 +526,7 @@ void free_game_state(GameState *game) {
 
         free(game);
     }
+
 }
 
 
@@ -431,6 +559,8 @@ void save_game_state(GameState *game, const char *filename) {
     }
 
     fclose(file);
+    free_word_array();
+    num_valid_words = 0;
 
     // for (int i = 0; i < game->rows; i++) {
     //     fprintf(file, "%s\n", game->board[i]);
