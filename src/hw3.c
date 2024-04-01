@@ -283,8 +283,9 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
     if (row > game->rows || col > game->cols || row < 0 || col < 0) return game;
     if (direction != 'H' && direction != 'V') return game;
     if (!game || !tiles) {return NULL;}
-
     int length = strlen(tiles);
+    if (length < 2) return game;
+    int placed = 0;
     // save, resize if necessary
     save(game, row, col, direction, tiles);
     if (peek(game->save_stack)->resized) {
@@ -297,6 +298,26 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
             resize_vertical(game, rows_to_add);
         }
     }
+    if (direction == 'H') {
+        for (int i = 0; i < length; i++) {
+            if (tiles[i] != ' ') {
+                game->board[row][col + i] = toupper(tiles[i]);
+                game->heights[row][col + i]++;
+                placed++;
+            }
+        }
+    } else {
+        for (int i = 0; i < length; i++) {
+            if (tiles[i] != ' ') {
+                game->board[row + i][col] = toupper(tiles[i]);
+                game->heights[row + i][col]++;
+                placed++;
+            }
+        }
+    }
+
+    *num_tiles_placed = placed;
+
 
     
 
@@ -312,12 +333,6 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
     //     valid_words++;
     // }
 
-    (void) *game;
-    (void) row;
-    (void) col;
-    (void) direction;
-    (void) *tiles;
-    (void) num_tiles_placed;
     return game;
 }
 
