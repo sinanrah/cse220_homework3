@@ -298,6 +298,8 @@ GameState* place_tiles(GameState *game, int row, int col, char direction, const 
         }
     }
 
+    
+
 
 
 
@@ -326,6 +328,10 @@ GameState* undo_place_tiles(GameState *game) {
     if (save->resized) {
         if (save->direction == 'V') {
             int rows_to_subtract = 0 - (game->rows - save->rows);
+            for (int i = save->rows; i < game->rows; i++) {
+                free(game->board[i]);
+                free(game->heights[i]);
+            }
             resize_vertical(game, rows_to_subtract);
         } else {
             int cols_to_subtract = 0 - (game->cols - save->cols);
