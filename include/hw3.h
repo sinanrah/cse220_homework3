@@ -1,10 +1,29 @@
 #include <stdlib.h>
 
+// typedef struct Dimensions {
+//     int rows;
+//     int cols;
+// } Dimensions
+
+// typedef struct BoardStack {  
+//     int capacity;
+//     int size;
+
+// }
 typedef struct Save {
-    int row;
+    // row and col of the tiles placed
+    int row; 
     int col;
+    // dimensions of the board at the time of the place_tiles call
+    int rows;
+    int cols;
+    // flag of whether or not the last place_tiles call resized the board
+    int resized;
+
+    char direction;
     char *tiles;
     int *heights; 
+    int length; // length of tiles
 } Save;
 
 typedef struct SaveStack {
